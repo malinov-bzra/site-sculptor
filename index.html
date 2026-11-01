@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KI-Website-Baukasten (lokal)</title>
+<style>
+:root{--bg:#f4f4f1;--fg:#1c1c1a;--card:#fff;--line:#d9d9d4;--accent:#2f5bea;--ok:#1f9d55;--no:#d64545}
+@media (prefers-color-scheme:dark){:root{--bg:#151515;--fg:#eee;--card:#222;--line:#3a3a3a;--accent:#7c9cff}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+h1{font-size:18px;margin:0}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.badge{font-size:12px;padding:3px 10px;border-radius:99px;background:var(--card);border:1px solid var(--line)}
+.badge.prev{background:#ffd54a;color:#222;border-color:#e0b800}
+iframe{width:100%;height:58vh;min-height:360px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+textarea,input,select{width:100%;padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:inherit}
+textarea{min-height:70px;resize:vertical}
+button{font:inherit;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+button.pri{background:var(--accent);color:#fff;border-color:transparent}
+button.ok{background:var(--ok);color:#fff;border-color:transparent}
+button.no{background:var(--no);color:#fff;border-color:transparent}
+button:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;grid-template-columns:2fr 1.4fr;gap:8px}
+.hint{font-size:12.5px;opacity:.75}
+.thumbs{display:flex;gap:6px;flex-wrap:wrap}
+.thumbs img{height:44px;border-radius:6px;border:1px solid var(--line)}
+#msg{min-height:20px;font-size:13.5px;white-space:pre-wrap}
+details summary{cursor:pointer;font-weight:600}
+.hide{display:none!important}
+@media(max-width:600px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar"><h1>KI-Website-Baukasten (lokal)</h1><span id="badge" class="badge">Live-Version</span></div>
+
+  <iframe id="frame" sandbox="" title="Website-Vorschau"></iframe>
+
+  <div id="decide" class="panel hide">
+    <div><b>Vorschau:</b> So sähe deine Website nach der Änderung aus.</div>
+    <div class="row">
+      <button class="ok" id="accept">✓ Annehmen &amp; speichern</button>
+      <button class="no" id="reject">✕ Ablehnen</button>
+    </div>
+  </div>
+
+  <div id="editor" class="panel">
+    <label for="req"><b>Was soll sich ändern?</b></label>
+    <textarea id="req" placeholder="z. B. „Mach alles rot und füge oben Bild 1 als Header ein“"></textarea>
+    <div class="row">
+      <button class="pri" id="go">Änderung anfragen</button>
+      <button id="cancel" class="hide">Abbrechen</button>
+      <button id="up">🖼 Bild hinzufügen</button>
+      <input type="file" id="file" accept="image/*" class="hide">
+      <button id="reset">Auf Standard zurücksetzen</button>
+    </div>
+    <div class="thumbs" id="thumbs"></div>
+    <div class="hint">Hinzugefügte Bilder heißen „Bild 1“, „Bild 2“ … Erwähne sie im Wunsch, dann baut das Modell sie ein.</div>
+    <div id="msg"></div>
+  </div>
+
+  <details class="panel" id="settings">
+    <summary>⚙ Einstellungen für dein lokales Modell</summary>
+    <div class="grid">
+      <div><label>API-Adresse (OpenAI-kompatibel)</label><input id="base" placeholder="http://localhost:11434/v1"></div>
+      <div><label>Modellname</label><input id="model" list="models" placeholder="z. B. llama3.1:8b"><datalist id="models"></datalist></div>
+    </div>
+    <div class="row"><button id="test">Verbindung testen / Modelle laden</button></div>
+    <div class="hint">Ollama: <code>http://localhost:11434/v1</code> · LM Studio: <code>http://localhost:1234/v1</code> · llama.cpp: <code>http://localhost:8080/v1</code></div>
+  </details>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const DEFAULT = {
+  css: `:root{--c:#2f5bea}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,sans-serif;color:#222;background:#fff;line-height:1.5}
+header{background:var(--c);color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center}
+header nav a{color:#fff;margin-left:16px;text-decoration:none;opacity:.9}
+.hero{padding:56px 24px;text-align:center;background:#f2f4fb}
+.hero h1{margin:0 0 8px;font-size:2.2rem}
+.hero a{display:inline-block;margin-top:14px;padding:10px 22px;background:var(--c);color:#fff;border-radius:8px;text-decoration:none}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;padding:32px 24px}
+.card{border:1px solid #e3e3e3;border-radius:12px;padding:18px}
+footer{text-align:center;padding:20px;color:#777;font-size:.9rem}`,
+  html: `<header><strong>Meine Website</strong><nav><a href="#">Start</a><a href="#">Über mich</a><a href="#">Kontakt</a></nav></header>
+<section class="hero"><h1>Willkommen!</h1><p>Das ist eine einfache Startseite, die du per KI beliebig umbauen kannst.</p><a href="#">Mehr erfahren</a></section>
+<section class="cards"><div class="card"><h3>Erstens</h3><p>Ein kurzer Text zu deinem ersten Thema.</p></div><div class="card"><h3>Zweitens</h3><p>Noch ein Abschnitt mit Inhalt.</p></div><div class="card"><h3>Drittens</h3><p>Und ein dritter Block.</p></div></section>
+<footer>© Meine Website</footer>`
+};
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+};
+let live = store.get('site-current', DEFAULT);
+let images = store.get('site-images', []);   // Data-URIs; Platzhalter im HTML: IMG_1, IMG_2 …
+let proposal = null, busy = false, ctrl = null;
+const cfg = Object.assign({ base: 'http://localhost:11434/v1', model: '' }, store.get('site-cfg', {}));
+
+const say = (t, err) => { $('#msg').textContent = t || ''; $('#msg').style.color = err ? 'var(--no)' : ''; };
+
+function clean(s) {
+  const strip = x => String(x || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '').replace(/javascript:/gi, '')
+    .replace(/@import[^;]+;/gi, '');
+  return { css: strip(s.css), html: strip(s.html) };
+}
+function withImages(t) { return t.replace(/IMG_(\d+)/g, (m, n) => images[n - 1] || m); }
+function render(s) {
+  $('#frame').srcdoc = withImages(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${s.css}</style></head><body>${s.html}</body></html>`);
+}
+function setMode(preview) {
+  $('#decide').classList.toggle('hide', !preview);
+  $('#editor').classList.toggle('hide', preview);
+  $('#badge').textContent = preview ? 'Vorschau (noch nicht gespeichert)' : 'Live-Version';
+  $('#badge').classList.toggle('prev', preview);
+}
+function drawThumbs() {
+  $('#thumbs').innerHTML = '';
+  images.forEach((u, i) => { const im = new Image(); im.src = u; im.title = 'Bild ' + (i + 1); $('#thumbs').appendChild(im); });
+}
+
+// "Modell" liefert CSS und HTML in Markern – robuster für kleine Modelle als JSON
+function parse(text) {
+  const unfence = x => x.replace(/^\s*```[a-z]*\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+  let m = text.match(/={2,}\s*CSS\s*={2,}([\s\S]*?)={2,}\s*HTML\s*={2,}([\s\S]*)/i);
+  if (m) return { css: unfence(m[1]), html: unfence(m[2]) };
+  const c = text.match(/```css\s*([\s\S]*?)```/i), h = text.match(/```html\s*([\s\S]*?)```/i);
+  if (h) return { css: c ? c[1].trim() : live.css, html: h[1].trim() };
+  return null;
+}
+
+async function ask() {
+  if (busy) return;
+  const req = $('#req').value.trim();
+  if (!req) return say('Bitte schreib zuerst, was du ändern möchtest.', true);
+  if (!cfg.model) { $('#settings').open = true; return say('Bitte zuerst den Modellnamen eintragen (Einstellungen unten).', true); }
+  busy = true; ctrl = new AbortController();
+  $('#go').disabled = true; $('#cancel').classList.remove('hide'); say('Dein Modell arbeitet … (je nach Rechner kann das etwas dauern)');
+  const imgInfo = images.length ? images.map((_, i) => `"Bild ${i + 1}" = im HTML als src="IMG_${i + 1}"`).join('; ') : 'keine';
+  const sys = `Du bist ein Web-Designer. Du bekommst CSS und HTML einer Website und einen Änderungswunsch. Gib die komplett geänderte Website zurück, ohne Erklärungen, exakt in diesem Format:
+===CSS===
+(komplettes Stylesheet)
+===HTML===
+(nur der Inhalt von <body>)
+Regeln: kein JavaScript, keine externen Ressourcen oder URLs. Bilder nur über die Platzhalter aus der Bilderliste (z. B. <img src="IMG_1">), sonst Inline-SVG, CSS oder Emoji. Behalte bestehende Inhalte, falls der Wunsch nichts anderes sagt. Gute Lesbarkeit und responsives Layout. Texte auf Deutsch.`;
+  const user = `BILDER: ${imgInfo}\n\nCSS:\n${live.css}\n\nHTML:\n${live.html}\n\nWUNSCH: ${req}`;
+  try {
+    const r = await fetch(cfg.base.replace(/\/$/, '') + '/chat/completions', {
+      method: 'POST', signal: ctrl.signal, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: cfg.model, temperature: 0.4, stream: false, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + (await r.text()).slice(0, 200));
+    const j = await r.json();
+    const out = parse(j.choices?.[0]?.message?.content || '');
+    if (!out) throw new Error('Das Modell hat kein brauchbares Format geliefert. Versuch es nochmal oder formuliere den Wunsch einfacher.');
+    proposal = clean(out); render(proposal); setMode(true); say('');
+  } catch (e) {
+    if (e.name === 'AbortError') say('Abgebrochen.');
+    else say('Fehler: ' + e.message + (e instanceof TypeError ? '\n\nKeine Verbindung zum Modell. Läuft der Server? Stimmt die Adresse? Eventuell blockiert CORS – siehe Hinweise im Chat.' : ''), true);
+  }
+  busy = false; $('#go').disabled = false; $('#cancel').classList.add('hide');
+}
+
+$('#go').onclick = ask;
+$('#cancel').onclick = () => ctrl && ctrl.abort();
+$('#accept').onclick = () => {
+  if (!store.set('site-current', proposal)) return say('Speichern fehlgeschlagen (Browser-Speicher voll?).', true);
+  live = proposal; proposal = null; $('#req').value = ''; setMode(false); say('Gespeichert ✓ Die Seite bleibt jetzt so (auch nach dem Neuladen).');
+};
+$('#reject').onclick = () => { proposal = null; render(live); setMode(false); say('Änderung verworfen.'); };
+$('#reset').onclick = () => {
+  if (!confirm('Wirklich auf die Standard-Seite zurücksetzen? (Bilder bleiben erhalten)')) return;
+  store.set('site-current', DEFAULT); live = DEFAULT; render(live); say('Zurückgesetzt.');
+};
+
+// Bilder: verkleinern und als Data-URI im Browser speichern
+$('#up').onclick = () => $('#file').click();
+$('#file').onchange = ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  const img = new Image(), url = URL.createObjectURL(f);
+  img.onload = () => {
+    const k = Math.min(1, 900 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    images.push(c.toDataURL('image/jpeg', 0.85)); URL.revokeObjectURL(url);
+    if (!store.set('site-images', images)) { images.pop(); return say('Browser-Speicher voll – Bild nicht gespeichert.', true); }
+    drawThumbs(); say(`Bild ${images.length} hinzugefügt. Schreib z. B. „Bild ${images.length} als Header“.`);
+  };
+  img.onerror = () => say('Bild konnte nicht gelesen werden.', true);
+  img.src = url; ev.target.value = '';
+};
+
+// Einstellungen
+$('#base').value = cfg.base; $('#model').value = cfg.model;
+const saveCfg = () => { cfg.base = $('#base').value.trim(); cfg.model = $('#model').value.trim(); store.set('site-cfg', cfg); };
+$('#base').onchange = $('#model').onchange = saveCfg;
+$('#test').onclick = async () => {
+  saveCfg(); say('Teste Verbindung …');
+  try {
+    const r = await fetch(cfg.base.replace(/\/$/, '') + '/models'); if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json(), ids = (j.data || []).map(m => m.id);
+    $('#models').innerHTML = ids.map(i => `<option value="${i}">`).join('');
+    if (!cfg.model && ids[0]) { $('#model').value = cfg.model = ids[0]; saveCfg(); }
+    say(`Verbunden ✓ ${ids.length} Modell(e) gefunden: ${ids.join(', ')}`);
+  } catch (e) { say('Keine Verbindung: ' + e.message + '\nLäuft der Server? Stimmt die Adresse? CORS-Hinweise siehe Chat.', true); }
+};
+
+render(live); drawThumbs();
+if (!cfg.model) $('#settings').open = true;
+</script>
+</body>
+</html>
